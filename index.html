@@ -1186,6 +1186,7 @@ ul,ol{margin:0;padding:0;list-style:none}
           <p class="hero-lead">走进 <strong>6 个校园生活场景</strong>，找出 <strong>18 处被忽略的环保问题</strong>。答对修复、收集绿色积分，生成你的侦探成绩卡，还能解锁第二关「绿色创意制作挑战赛」。</p>
           <div class="hero-actions">
             <button class="btn btn-primary" id="start-btn" type="button">开始侦查<span class="btn-arrow" aria-hidden="true">→</span></button>
+            <button class="btn btn-quiet" id="continue-btn" type="button" hidden>继续上次侦查</button>
             <a class="btn btn-quiet" href="#how-to">先看看怎么玩</a>
           </div>
           <div class="hero-meta" aria-label="游戏信息">
@@ -3940,6 +3941,101 @@ SCENES.forEach(scene => {
   });
 });
 
+/* ===== 本地存档（localStorage） ===== */
+const SAVE_KEY = 'eco-detective-save-v1';
+
+function saveProgress() {
+  try {
+    const data = {
+      state: {
+        scene: state.scene,
+        score: state.score,
+        fixed: state.fixed,
+        firstTry: state.firstTry,
+        hintsLeft: state.hintsLeft,
+        hintsUsed: state.hintsUsed,
+        startedAt: state.startedAt,
+        currentPoints: state.currentPoints,
+        missTaps: state.missTaps
+      },
+      problemState: JSON.parse(JSON.stringify(problemState)),
+      savedAt: Date.now()
+    };
+    window.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch (e) {
+    // localStorage 不可用时静默忽略
+  }
+}
+
+function hasProgress() {
+  try {
+    const raw = window.localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    // 有效存档：有 state 和 problemState
+    return data && data.state && data.problemState
+      && typeof data.state.scene === 'number'
+      && typeof data.state.score === 'number';
+  } catch (e) { return false; }
+}
+
+function loadProgress() {
+  try {
+    const raw = window.localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || !data.state || !data.problemState) return false;
+
+    // 恢复 state（安全拷贝，忽略多余字段）
+    const allowed = ['scene', 'score', 'fixed', 'firstTry', 'hintsLeft', 'hintsUsed', 'startedAt', 'currentPoints', 'missTaps'];
+    allowed.forEach(k => { if (typeof data.state[k] !== 'undefined') state[k] = data.state[k]; });
+
+    // 恢复 problemState（按当前 SCENES 校验，避免旧版本残留）
+    SCENES.forEach(scene => {
+      scene.problems.forEach(problem => {
+        const saved = data.problemState[problem.id];
+        if (saved) {
+          problemState[problem.id] = {
+            fixed: !!saved.fixed,
+            correct: !!saved.correct,
+            anyWrong: !!saved.anyWrong,
+            penalty: Number(saved.penalty) || 0,
+            points: Number(saved.points) || 0
+          };
+        }
+      });
+    });
+    return true;
+  } catch (e) { return false; }
+}
+
+function clearProgress() {
+  try { window.localStorage.removeItem(SAVE_KEY); } catch (e) {}
+}
+
+/* ===== 恢复视觉：根据 problemState 给 hotspot 和问题组补状态 ===== */
+function restoreSceneVisuals() {
+  const idx = state.scene;
+  const activeSvg = $(`.scene-svg[data-scene="${idx}"]`, dom.sceneLayer);
+  SCENES[idx].problems.forEach(problem => {
+    const ps = problemState[problem.id];
+    if (!ps) return;
+    if (ps.fixed) {
+      if (activeSvg) {
+        const g = activeSvg.querySelector(`[data-problem="${problem.id}"]`);
+        if (g) g.classList.add('is-fixed');
+      }
+      const hotspot = $(`.hotspot[data-id="${problem.id}"]`, dom.hotspots);
+      if (hotspot) {
+        hotspot.classList.add('is-found');
+        hotspot.classList.remove('is-hinted');
+        hotspot.disabled = true;
+        hotspot.setAttribute('aria-label', `${problem.title}，已修复`);
+      }
+    }
+  });
+}
+
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const pad2 = value => String(value).padStart(2, '0');
@@ -3962,6 +4058,15 @@ function init() {
   updateSoundButton();
   renderScene(0, false);
   updateHUD();
+  // 有存档时在首页显示「继续上次侦查」按钮
+  if (hasProgress() && typeof dom.continueBtn !== 'undefined') {
+    dom.continueBtn.hidden = false;
+  }
+  // 页面关闭/隐藏前自动存档
+  window.addEventListener('beforeunload', saveProgress);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') saveProgress();
+  });
 }
 
 function cacheDom() {
@@ -3972,6 +4077,7 @@ function cacheDom() {
     invite: $('#screen-invite')
   };
   dom.startBtn = $('#start-btn');
+  dom.continueBtn = $('#continue-btn');
   dom.sceneCard = $('#scene-card');
   dom.sceneNo = $('#scene-no');
   dom.sceneTheme = $('#scene-theme');
@@ -4050,6 +4156,31 @@ function bindEvents() {
     beginRun();
   });
 
+  if (dom.continueBtn) {
+    dom.continueBtn.addEventListener('click', () => {
+      unlockAudio();
+      if (loadProgress()) {
+        showScreen('game');
+        renderScene(state.scene, false);
+        restoreSceneVisuals();
+        updateHUD();
+        // 笔记面板也按当前 problemState 刷新
+        renderNotes(SCENES[state.scene]);
+        updateSceneDots(SCENES[state.scene]);
+        // 显示恢复提示
+        const fixed = Object.values(problemState).filter(p => p.fixed).length;
+        if (state.scene >= SCENES.length - 1 && fixed >= TOTAL_PROBLEMS) {
+          showToast('检测到上次已完成全部侦查，点击下方「查看成绩卡」可再次保存。', 'success');
+        } else {
+          showToast(`已恢复侦查进度：当前第 ${state.scene + 1} 场景，已修复 ${fixed} 处。`, 'success');
+        }
+      } else {
+        showToast('存档已过期或损坏，重新开始侦查。', '');
+        beginRun();
+      }
+    });
+  }
+
   dom.soundBtn.addEventListener('click', toggleSound);
   dom.hintBtn.addEventListener('click', useHint);
   dom.footHint.addEventListener('click', useHint);
@@ -4086,6 +4217,7 @@ function bindEvents() {
       showResult();
     } else {
       renderScene(state.scene + 1);
+      saveProgress(); // 切场景后存一次
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   });
@@ -4132,6 +4264,8 @@ function bindEvents() {
    FLOW
    ============================================================ */
 function beginRun() {
+  // 全新开始：清掉上一份存档
+  clearProgress();
   Object.keys(problemState).forEach(key => {
     problemState[key] = { fixed: false, correct: false, anyWrong: false, penalty: 0, points: 0 };
   });
@@ -4352,6 +4486,7 @@ function selectOption(optionIndex) {
   if (optionIndex === problem.answer) {
     ps.correct = true;
     state.currentPoints = Math.max(0, FIX_POINTS - ps.penalty);
+    saveProgress(); // 答对：状态变化点
     selected.classList.add('is-correct');
     selected.querySelector('.option-mark').textContent = '✓';
     optionButtons.forEach((button, index) => {
@@ -4370,6 +4505,7 @@ function selectOption(optionIndex) {
   ps.penalty += WRONG_PENALTY;
   state.currentPoints = Math.max(0, FIX_POINTS - ps.penalty);
   state.score = Math.max(0, state.score - WRONG_PENALTY);
+  saveProgress(); // 答错：扣分已入账
   selected.classList.add('is-wrong');
   selected.querySelector('.option-mark').textContent = '×';
   selected.disabled = true;
@@ -4434,6 +4570,7 @@ function commitFix() {
   state.score += ps.points;
   state.fixed += 1;
   if (!ps.anyWrong) state.firstTry += 1;
+  saveProgress(); // 修复成功：关键存档点
 
   const activeSvg = $(`.scene-svg[data-scene="${state.scene}"]`, dom.sceneLayer);
   const problemGroup = activeSvg ? activeSvg.querySelector(`[data-problem="${problem.id}"]`) : null;
@@ -4512,6 +4649,7 @@ function useHint() {
   state.hintsLeft -= 1;
   state.hintsUsed += 1;
   state.missTaps = 0;
+  saveProgress(); // 用了提示也要存档
   updateHUD();
 
   const hotspot = $(`.hotspot[data-id="${target.id}"]`, dom.hotspots);
@@ -4559,6 +4697,7 @@ function showResult() {
   createConfetti(stars);
   showScreen('result');
   playWin();
+  saveProgress(); // 全部通关后的最终存档（不清档，replayBtn 会清）
 }
 
 function formatDuration(milliseconds) {
