@@ -392,6 +392,26 @@ ul,ol{margin:0;padding:0;list-style:none}
 .scene-titles h1{font-family:var(--display);font-size:clamp(22px,2.5vw,29px);line-height:1.2;letter-spacing:-.035em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .scene-titles p{font-size:11px;color:var(--ink-soft);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .scene-dots{margin-left:auto;display:flex;align-items:center;gap:6px}
+.scene-nav{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-top:14px;padding-top:12px;border-top:1px dashed rgba(47,114,84,.25);
+  gap:10px;
+}
+.scene-nav .nav-btn{
+  flex:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:10px 14px;border-radius:14px;border:1.5px solid var(--line);
+  background:rgba(255,253,246,.95);color:var(--ink);
+  font-size:13px;font-weight:700;font-family:var(--display);letter-spacing:.02em;
+  cursor:pointer;transition:transform .12s ease,background .15s ease,color .15s ease,opacity .15s ease;
+}
+.scene-nav .nav-btn:hover:not(:disabled){background:rgba(215,238,114,.65)}
+.scene-nav .nav-btn:active:not(:disabled){transform:scale(.97)}
+.scene-nav .nav-btn:disabled{opacity:.42;cursor:not-allowed;background:rgba(47,114,84,.06)}
+.scene-nav .nav-next{background:linear-gradient(180deg,#fffde8 0%,#f4fadc 100%);border-color:#b8dc6a;color:#2c4a2d}
+.scene-nav .nav-next:hover:not(:disabled){background:linear-gradient(180deg,#f7ffd7 0%,#d9ef8b 100%)}
+.scene-nav .nav-final{background:linear-gradient(180deg,#fff6e8 0%,#ffe4c2 100%);border-color:#e5b070;color:#6b4616}
+.scene-nav .nav-final:hover:not(:disabled){background:linear-gradient(180deg,#fff0d4 0%,#ffd8a0 100%)}
+.scene-nav .nav-idx{color:var(--ink-soft);font-size:11px;font-weight:800;padding:0 6px;letter-spacing:.05em}
 .scene-dot{
   width:30px;height:8px;border-radius:99px;background:rgba(23,58,49,.1);
   transition:background .3s,width .3s;
@@ -3350,6 +3370,16 @@ ul,ol{margin:0;padding:0;list-style:none}
             <p><span class="icon-target" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4 4M11 8v6M8 11h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>找出画面中 <b>3</b> 处不环保的行为</p>
             <button class="link-hint" id="foot-hint" type="button">需要一点提示？</button>
           </footer>
+
+          <nav class="scene-nav" aria-label="场景切换">
+            <button class="nav-btn nav-prev" id="scene-prev" type="button" aria-label="返回上一场景">
+              <span aria-hidden="true">←</span> 上一场景
+            </button>
+            <span class="nav-idx" id="scene-idx-label">01 / 06</span>
+            <button class="nav-btn nav-next" id="scene-next" type="button" aria-label="进入下一场景">
+              下一场景 <span aria-hidden="true">→</span>
+            </button>
+          </nav>
         </div>
 
         <aside class="notebook" aria-label="侦查笔记">
@@ -4105,6 +4135,9 @@ function cacheDom() {
   dom.clearList = $('#clear-list');
   dom.clearPoints = $('#clear-points');
   dom.clearNext = $('#clear-next');
+  dom.scenePrev = $('#scene-prev');
+  dom.sceneNext = $('#scene-next');
+  dom.sceneIdxLabel = $('#scene-idx-label');
   dom.restartBtn = $('#restart-btn');
   dom.quizModal = $('#quiz-modal');
   dom.quizClose = $('#quiz-close');
@@ -4213,14 +4246,25 @@ function bindEvents() {
   dom.clearNext.addEventListener('click', () => {
     dom.clearOverlay.hidden = true;
     document.body.classList.remove('modal-open', 'clear-open');
-    if (state.scene >= SCENES.length - 1) {
+    const fixedCount = Object.values(problemState).filter(p => p.fixed).length;
+    if (fixedCount >= TOTAL_PROBLEMS) {
+      // 全部 18 处修复完毕 → 查看最终成绩
       showResult();
+    } else if (state.scene >= SCENES.length - 1) {
+      // 停留在末场景但前面还有题漏修 → 引导回去补
+      const remaining = TOTAL_PROBLEMS - fixedCount;
+      showToast(`还有 ${remaining} 处问题未修复，回去补齐吧！`, 'error');
+      updateSceneNav(); // 刷新按钮（保证不出现 final 变体）
     } else {
       renderScene(state.scene + 1);
-      saveProgress(); // 切场景后存一次
+      saveProgress();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   });
+
+  // 场景切换按钮（底部 nav）
+  if (dom.scenePrev) dom.scenePrev.addEventListener('click', () => navigateScene(-1));
+  if (dom.sceneNext) dom.sceneNext.addEventListener('click', onSceneNextClick);
 
   dom.toInvite.addEventListener('click', openInvite);
   dom.replayBtn.addEventListener('click', beginRun);
@@ -4319,6 +4363,7 @@ function renderScene(index, animate = true) {
   renderHotspots(scene);
   renderNotes(scene);
   updateSceneDots(scene);
+  updateSceneNav();
   hideToast();
   document.body.classList.remove('modal-open', 'clear-open');
   dom.clearOverlay.hidden = true;
@@ -4330,6 +4375,62 @@ function renderScene(index, animate = true) {
     dom.sceneCard.classList.remove('scene-enter');
     void dom.sceneCard.offsetWidth;
     dom.sceneCard.classList.add('scene-enter');
+  }
+}
+
+/* ===== 场景导航：上一场景 / 下一场景 ===== */
+function navigateScene(delta) {
+  const target = state.scene + delta;
+  if (target < 0 || target >= SCENES.length) return;
+  // 关弹层
+  dom.clearOverlay.hidden = true;
+  document.body.classList.remove('modal-open', 'clear-open');
+  closeQuiz(true);
+  renderScene(target);
+  // 切过去后重新把已修复的 hotspot / svg data-problem 补上状态（renderHotspots 里已经按 problemState 做了，SVG 要补）
+  restoreSceneVisuals();
+  saveProgress();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function onSceneNextClick() {
+  const mode = dom.sceneNext ? dom.sceneNext.dataset.mode : 'next';
+  if (mode === 'final') {
+    dom.clearOverlay.hidden = true;
+    document.body.classList.remove('modal-open', 'clear-open');
+    showResult();
+  } else {
+    navigateScene(+1);
+  }
+}
+
+function updateSceneNav() {
+  const idx = state.scene;
+  const fixedCount = Object.values(problemState).filter(p => p.fixed).length;
+  const allDone = fixedCount >= TOTAL_PROBLEMS;
+
+  if (dom.sceneIdxLabel) dom.sceneIdxLabel.textContent = `${pad2(idx + 1)} / ${pad2(SCENES.length)}`;
+
+  if (dom.scenePrev) {
+    dom.scenePrev.disabled = idx <= 0;
+  }
+  if (!dom.sceneNext) return;
+  // 已全部修复：变成"查看成绩卡"按钮
+  if (allDone) {
+    dom.sceneNext.dataset.mode = 'final';
+    dom.sceneNext.disabled = false;
+    dom.sceneNext.classList.remove('nav-next');
+    dom.sceneNext.classList.add('nav-final');
+    dom.sceneNext.innerHTML = '<span aria-hidden="true">★</span> 查看成绩卡';
+    dom.sceneNext.setAttribute('aria-label', '查看成绩卡');
+  } else {
+    // 未全部修复：最后场景禁用"下一场景"，否则可用
+    dom.sceneNext.dataset.mode = 'next';
+    dom.sceneNext.classList.add('nav-next');
+    dom.sceneNext.classList.remove('nav-final');
+    dom.sceneNext.innerHTML = '下一场景 <span aria-hidden="true">→</span>';
+    dom.sceneNext.setAttribute('aria-label', '进入下一场景');
+    dom.sceneNext.disabled = idx >= SCENES.length - 1;
   }
 }
 
