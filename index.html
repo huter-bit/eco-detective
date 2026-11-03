@@ -500,6 +500,8 @@ ul,ol{margin:0;padding:0;list-style:none}
   background:rgba(18,48,37,.54);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
 }
 .clear-overlay[hidden]{display:none!important}
+/* 成绩结算浮层打开时，隐藏下方场景导航，避免其叠在结算按钮上 */
+body.clear-open .scene-nav{visibility:hidden}
 .clear-card{
   width:min(430px,100%);padding:28px 26px 24px;border:2.5px solid var(--ink);border-radius:24px;
   background:var(--cream);text-align:center;box-shadow:0 20px 0 rgba(8,27,20,.18),0 30px 70px rgba(8,27,20,.25);
@@ -901,11 +903,14 @@ ul,ol{margin:0;padding:0;list-style:none}
 .example-card div:last-child{padding:9px 11px 11px}
 .example-card b{display:block;font-size:11px}
 .example-card span{display:block;font-size:9px;color:var(--ink-soft);margin-top:2px}
-.track-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:5px}
-.track-card{padding:17px;border-radius:16px;border:1.5px solid var(--line);background:linear-gradient(145deg,rgba(223,241,213,.55),rgba(255,253,246,.65))}
-.track-tag{display:inline-block;padding:4px 8px;border-radius:999px;background:var(--ink);color:var(--lime);font-family:var(--display);font-size:8px;font-weight:800;letter-spacing:.08em}
-.track-card h4{font-family:var(--display);font-size:16px;line-height:1.35;margin:8px 0 4px}
-.track-card p{font-size:10px;line-height:1.75;color:var(--ink-soft)}
+.group-qr{
+  display:flex;flex-direction:column;align-items:center;gap:7px;margin-top:14px;padding:16px;
+  border-radius:16px;border:1.5px solid var(--line);
+  background:linear-gradient(145deg,rgba(223,241,213,.55),rgba(255,253,246,.65));
+}
+.group-qr img{display:block;width:min(250px,100%);border-radius:12px}
+.group-qr b{font-family:var(--display);font-size:13px}
+.group-qr span{font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--ink-soft)}
 .signup-block{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:26px;align-items:center;background:var(--mint);border-radius:20px;padding:22px!important;margin-top:20px;border:1px solid rgba(47,114,84,.16)!important}
 .signup-copy .eyebrow{font-size:9px}
 .signup-copy h3{margin:5px 0 6px}
@@ -1153,7 +1158,7 @@ ul,ol{margin:0;padding:0;list-style:none}
   .steps-3{grid-template-columns:1fr}
   .example-grid{grid-template-columns:1fr 1fr}
   .example-card:last-child{grid-column:1/-1}
-  .track-grid{grid-template-columns:1fr}
+  .group-qr img{width:min(210px,100%)}
   .signup-block{grid-template-columns:1fr;gap:16px;padding:16px!important}
   .qr-card{width:min(220px,100%);margin:0 auto}
   .qr-code{width:164px;height:164px}
@@ -3585,18 +3590,12 @@ ul,ol{margin:0;padding:0;list-style:none}
         </div>
 
         <div class="panel-block" data-mode="a b">
-          <div class="section-title"><span id="track-step-number">04</span><h3>选择你的赛道</h3></div>
-          <div class="track-grid">
-            <article class="track-card">
-              <span class="track-tag">个人赛道</span>
-              <h4>一个人，也能闪闪发光</h4>
-              <p>独立完成一件旧物改造作品，提交作品照片、材料说明与创意故事，展示你的个人脑洞。</p>
-            </article>
-            <article class="track-card">
-              <span class="track-tag">团队赛道</span>
-              <h4>组队，让脑洞翻倍</h4>
-              <p>支持 2–4 人自行组队报名。未组队但希望参加团队赛道的选手，由主办方统一协调组队。</p>
-            </article>
+          <div class="section-title"><span id="track-step-number">04</span><h3>扫码加入活动群</h3></div>
+          <p class="panel-copy">有意向参加的同学请在报名后扫描二维码加群，后续的作品提交与评比通知都会在群内发布。</p>
+          <div class="group-qr">
+            <img src="images/group-qr.png" alt="资源再生创意挑战赛活动群二维码，群号 1125837528">
+            <b>资源再生创意挑战赛 · 活动群</b>
+            <span>群号 1125837528</span>
           </div>
         </div>
 
@@ -3604,7 +3603,7 @@ ul,ol{margin:0;padding:0;list-style:none}
           <div class="signup-copy">
             <p class="eyebrow">REGISTRATION</p>
             <h3>第二关报名通道</h3>
-            <p>扫描右侧二维码填写报名表。个人赛道与团队赛道在同一份报名表中选择。</p>
+            <p>扫描右侧二维码填写报名表，提交后记得扫码加入活动群，获取后续通知。</p>
             <div class="signup-actions">
               <button class="btn btn-outline" id="view-score" type="button">📷 查看我的第一关成绩卡</button>
             </div>
@@ -3613,7 +3612,7 @@ ul,ol{margin:0;padding:0;list-style:none}
           <div class="qr-card">
             <div class="qr-code" id="qr-code"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAbwAAAG8CAAAAACA208DAAAEjUlEQVR42u3dwWocMRBF0aeQ///lyj5gGNFVatk+dxns2J6DelFIrVXRd+2PjwCe4AkePMETPMGDJ3iCB0/wBE/w4Ame4AkePMETPHiCJ3iCB0/wBE/w4Ame4METPMETPHiCJ3jwBE/wBA+e4Ame/u/v7jesgV+iHvz/u99bH/xdtfnvE5+DleexKXiCJ3jwBE/w4Ame4Cmts808mMXlg9lgbX7vavodPplnnvwcrDyPTcETPMGDJ3iCB0/wBE8Zm22mac/k7uxxd99mNc1R66XPwcrz2BQ8wYMneIInePAET/CUsdlmLjirXpt7O8vKEzzBgyd4gid48ARP8OApZpvvtDbnnPVgX6iVJ3iCB0/wBA+e4Ame4MFTftxss4bnlruzyt07gFbT31JWnuDBEzzBEzx4gid48ARPuX22OXFX+Grae7mazryvzTvWrTzBgyd4gid48ARP8OAJnnLlbLNeOm/e9XOr6evLyhM8eIIneIIHT/AET/DgKd9ptrma7iv/am5ZD/ZDroE9onnwrs7p+a2V57EpeIIHT/AET/DgCZ7g/eLWDe/JnJgBPrkbvev8ew3f1W7leWwKnuDBEzzBEzx4gid4sW8znXsja3jPZAbmpV3n0Lu+xsrz2BQ8wRM8eIInePAET/CU1n2bE+e4J/Y0rqZz7hmY38aZdMGDJ3iCB0/wBE/w4AmecuNdQnXwvZ15cNf5k9njJ79bWXmCB0/wBA+e4Ame4METPOXGM+l18OtX097INbB/cmJfqJXnsSl4gid48ARP8OAJnuAp19wllIN3kXft+ayD+z+dSffYFDzBEzx4gid48ARP8JTj+zZ3/72G7yh/Mnetg/tUrTyPTcETPMGDJ3iCJ3jwBE85vm9z4l6hifvZ18G7y0/OOa08j03BEzx4gid4ggdP8AQv9m3m6VnvdXAP5PS7MbvmqNN3wVt5HpuCJ3jwBE/wBA+e4AlezDZbmzhLnuH/p+tndb2H08rz2BQ8wRM8eIInePAET/CU1jPpb90BlOGf23X2PAfPv1t5HpuCJ3jwBE/wBA+e4Ale7Ns83jq4P3O9tC90+j2cVp7HpuAJHjzBEzzBgyd4ghf7Nu/5hdJzT1A1vbez684jdwkJHjzBEzx4gid4ggdP8JQr7xJK03svu2aY03/XW+ffrTyPTcETPHiCJ3iCB0/wBE9JHp5Jr7x/TnwN33/UdQ+RM+mCB0/wBA+e4Ame4METPOXK9212zQMn9kO+dc+Re9IFD57gCR48HwE8wRM8eIKn/Li7hDKwX3QN3+feNZ/sOkdv5XlsCp7gwRM8wRM8eIIneDHbzO1zywzcsT5xr9A6eN+6leexKXiCB0/wBE/w4Ame4MVsMydmkhl+D2cOzjAnZqpWnsem4Ame4METPMGDJ3iCpxyZba7ctZ9z4r2dq2l/Zg3MhK08j03BEzx4gid4ggdP8ATvF7fKZ2DlCZ7gwRM8wRM8eIInePAET/AED57gCZ7gwRM8wYMneIInePAET/AED57gCR48wRM8wYMneIIHT/AET/DgCZ7gCd7P6R9wq8KQVc8AkQAAAABJRU5ErkJggg==" alt="第二关报名二维码"></div>
             <b>扫码填写报名表</b>
-            <span>个人 / 团队赛道</span>
+            <span>填写后扫码加群</span>
           </div>
         </div>
       </section>
